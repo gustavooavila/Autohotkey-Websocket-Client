@@ -200,7 +200,7 @@ class WSResponse{
         this.opcode := opcode
         this.fin := fin
         if(message) {
-            if(opcode := 0x01)
+            if(opcode & 0x01)
         this.length := strlen(message)
         } else {
             this.length := length
@@ -208,7 +208,7 @@ class WSResponse{
     }
     
     encode() {
-        if(this.opcode := 0x01) {
+        if(this.opcode & 0x01) {
             this.length := strlen(this.message)
         }
         
