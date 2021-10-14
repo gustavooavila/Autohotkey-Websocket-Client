@@ -31,18 +31,24 @@ class WSClient extends SocketTCP
 {
     OnRecv()
     {   
-        DataSize := this.MsgLen()
+        DataSize := this.MsgSize()
         VarSetCapacity(Data, DataSize)
 
-        this.Socket.Recv(Data, DataSize)
+        this.Recv(Data, DataSize)
 
-        res := new WSRequest(Data, DataSize)
-        
-        console.log(res)
-        console.log(res.payload)
-
-        this.OnRequest(res)
+        this.OnRequest.Call(new WSRequest(&Data, DataSize))
 
         return
+    }
+
+    SendText(Message) {
+        MessageSize := StrPut(Message, "UTF-8") - 1
+        VarSetCapacity(MessageBuffer, MessageSize)
+        StrPut(Message, &MessageBuffer, MessageSize, "UTF-8")
+
+        Response := new WSResponse(0x01, &MessageBuffer, MessageSize)
+        ResponseBuffer := Response.Encode()
+
+        this.Send(ResponseBuffer.GetPointer(), ResponseBuffer.Length)
     }
 }

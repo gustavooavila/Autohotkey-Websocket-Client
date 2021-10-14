@@ -123,6 +123,8 @@
 	
 	SendText(Text, Flags:=0, Encoding:="UTF-8")
 	{
+		local
+
 		VarSetCapacity(Buffer, StrPut(Text, Encoding) * ((Encoding="UTF-16"||Encoding="cp1200") ? 2 : 1))
 		Length := StrPut(Text, &Buffer, Encoding)
 		return this.Send(&Buffer, Length - 1)
@@ -130,6 +132,8 @@
 	
 	Recv(ByRef Buffer, BufSize:=0, Flags:=0)
 	{
+		local
+
 		while (!(Length := this.MsgSize()) && this.Blocking)
 			Sleep, this.BlockSleep
 		if !Length
@@ -144,6 +148,8 @@
 	
 	RecvText(BufSize:=0, Flags:=0, Encoding:="UTF-8")
 	{
+		local
+
 		if (Length := this.Recv(Buffer, BufSize, flags))
 			return StrGet(&Buffer, Length, Encoding)
 		return ""

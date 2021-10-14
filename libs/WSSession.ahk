@@ -56,11 +56,15 @@ class WSSession {
 			ObjSetBase(WS, WSClient)
 			this.WS := WS
 
-			this.WS.OnRequest := ObjBindMethod(this, "HandleWS")
+			this.WS.OnRequest := this.HandleWS
         }
         else
         {
             console.log(response.raw)
         }
     }
+
+	SendText(Message) {
+		this.WS.SendText(Message)
+	}
 }

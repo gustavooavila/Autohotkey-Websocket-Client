@@ -2,7 +2,8 @@ class Buffer
 {
     __New(len) {
         this.SetCapacity("buffer", len)
-        this.length := 0
+        this.length := len
+        this.index := 0
     }
 
     FromString(str, encoding = "UTF-8") {
@@ -15,10 +16,10 @@ class Buffer
     GetStrSize(str, encoding = "UTF-8") {
         encodingSize := ((encoding="utf-16" || encoding="cp1200") ? 2 : 1)
         ; length of string, minus null char
-        return StrPut(str, encoding) * encodingSize - encodingSize
+        return StrPut(str, encoding) - encodingSize
     }
 
-    WriteStr(str, encoding = "UTF-8") {
+    WriteStr(str, encoding := "UTF-8") {
         length := this.GetStrSize(str, encoding)
         
         VarSetCapacity(text, length)
@@ -30,16 +31,20 @@ class Buffer
 
     ; data is a pointer to the data
     Write(data, length) {
+        if (this.index + length > this.length) {
+            this.SetCapacity("buffer", this.index + length)
+        }
+
         p := this.GetPointer()
-        DllCall("RtlMoveMemory", "uint", p + this.length, "uint", data, "uint", length)
-        this.length += length
+        DllCall("RtlMoveMemory", "ptr", p + this.index, "ptr", data, "uint", length)
+        this.index += length
     }
 
     Append(ByRef buffer) {
         destP := this.GetPointer()
         sourceP := buffer.GetPointer()
 
-        DllCall("RtlMoveMemory", "uint", destP + this.length, "uint", sourceP, "uint", buffer.length)
+        DllCall("RtlMoveMemory", "ptr", destP + this.length, "ptr", sourceP, "uint", buffer.length)
         this.length += buffer.length
     }
 
