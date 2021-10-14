@@ -1,15 +1,13 @@
 #include HTTPClient.ahk
 #include WSClient.ahk
 
-class WSSession {
-	 __New(OnRequest, host, port := 80, url := "/", subprotocol := "")
+class WSSession extends EventEmitter {
+	 __New(host, port := 80, url := "/", subprotocol := "")
     {
         this.host := host
         this.port := port
         this.url := url
         this.subprotocol := subprotocol
-
-		this.HandleWS := OnRequest.Bind(this)
         
         this.HTTP := new HTTPClient(this.host, this.port, ObjBindMethod(this, "HandleHTTP"))
 
@@ -18,8 +16,6 @@ class WSSession {
     
     DoHandshake()
     {
-        console.log("only this once")
-
         UpgradeRequest := new HTTPRequest()
 
         this.key := createHandshakeKey()
@@ -56,13 +52,41 @@ class WSSession {
 			ObjSetBase(WS, WSClient)
 			this.WS := WS
 
-			this.WS.OnRequest := this.HandleWS
+			this.WS.OnRequest := ObjBindMethod(this, "HandleWS")
         }
         else
         {
             console.log(response.raw)
         }
     }
+
+	HandleWS(Response) {
+		OpcodeName := WSOpcodes.ToString(Response.Opcode)
+
+		if (ObjGetBase(this).HasKey("On" OpcodeName)) {
+			this["On" OpcodeName](Response)
+		}
+		
+		return this.Emit(Response.Opcode, Response)
+	}
+
+	OnPing(Response) {
+		; To handle a PING, we just need to reply with a PONG containing the exact same application data as the pong
+
+		this.WS.SendFrame(WSOpcodes.Pong, Response.pPayload, Response.PayloadSize)
+
+		console.log("Pong'd")
+	}
+
+	OnClose(Response) {
+		; To handle a CLOSE, we just reply with a CLOSE and then close the socket
+
+		this.WS.SendFrame(WSOpcodes.Close)
+
+		this.WS.Disconnect()
+
+		console.log("Closed")
+	}
 
 	SendText(Message) {
 		this.WS.SendText(Message)

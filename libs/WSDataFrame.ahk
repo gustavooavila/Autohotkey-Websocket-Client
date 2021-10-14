@@ -57,6 +57,23 @@
 
 OpCodes := {CONTINUATION:0x0,TEXT:0x1,BINARY:0x2,CLOSE:0x8,PING:0x9,PONG:0xA}
 
+class WSOpcodes {
+        static CONTINUATION := 0x0
+        static TEXT := 0x1
+        static BINARY := 0x2
+        static CLOSE := 0x8
+        static PING := 0x9
+        static PONG := 0xA
+
+        ToString(Value) {
+            for Name, NameValue in WSOpcodes {
+                if (Value = NameValue) {
+                    return Name
+                }
+            }
+        }
+    }
+
 /*
     MDN says: 
     "
@@ -167,6 +184,13 @@ class WSRequest{
         else if (this.mask) {
             this.key := this.getKey(pData)
         }
+
+        ; FIXME: This only works for very short frames
+
+        HeaderSize := 2 + (this.mask * 4)
+
+        this.pPayload := pData + HeaderSize
+        this.PayloadSize := this.length
     }
     
     getKey(pData, index := 2){
@@ -205,7 +229,7 @@ class WSRequest{
         return this.payload
     }
 }
-class WSResponse{
+class WSResponse {
     __new(opcode := 0x01, pMessage := "", length := 0, fin := True){
         this.opcode := opcode
         this.fin := fin

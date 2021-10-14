@@ -41,14 +41,18 @@ class WSClient extends SocketTCP
         return
     }
 
+    SendFrame(Opcode, pMessageBuffer := 0, MessageSize := 0) {
+        Response := new WSResponse(Opcode, pMessageBuffer, MessageSize)
+        ResponseBuffer := Response.Encode()
+
+        this.Send(ResponseBuffer.GetPointer(), ResponseBuffer.Length)
+    }
+
     SendText(Message) {
         MessageSize := StrPut(Message, "UTF-8") - 1
         VarSetCapacity(MessageBuffer, MessageSize)
         StrPut(Message, &MessageBuffer, MessageSize, "UTF-8")
 
-        Response := new WSResponse(0x01, &MessageBuffer, MessageSize)
-        ResponseBuffer := Response.Encode()
-
-        this.Send(ResponseBuffer.GetPointer(), ResponseBuffer.Length)
+        this.SendFrame(WSOpcodes.Text, &MessageBuffer, MessageSize)
     }
 }
