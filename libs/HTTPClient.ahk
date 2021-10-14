@@ -171,7 +171,7 @@ class HTTPRequest
             StringReplace,value,value,`r,,A
             body .= key . ": " . value . "`r`n"
         }
-        body .= "`r`n`r`n"
+        body .= "`r`n"
         buffer := new Buffer((StrLen(body) * 2))
         buffer.WriteStr(body)
         
