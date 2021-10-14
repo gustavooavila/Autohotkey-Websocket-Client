@@ -2,6 +2,20 @@
 #include WSClient.ahk
 
 class WSSession extends EventEmitter {
+	; So, the whole idea behind a websocket is that we're converting a HTTP connection into a websocket connection, reusing the
+	;  existing connection. 
+	; Which means we either need our HTTP socket to understand websockets (which is just flat out a bad idea), or we need
+	;  to come up with a way to convert out HTTP socket into a websocket socket. Which is what this class does.
+
+	; And this class accomplishes that. It acts as either an HTTP session, or a websocket session depening ong what's needed
+	;  at the moment. So it is an HTTP session until we switch to the websocket protocol, then it is a websocket session
+	;   from then one.
+	
+	; And since HTTPClient and WSClient both share the common base class of TCPSocket, and only depend on TCPSocket members, it is
+	;  perfectly safe to just swap WSClient in for the base class of an existing HTTPClient and have TCPSocket members work
+	;   just like before.
+	; Effectively casting a HTTPClient to a WSClient.
+
 	 __New(host, port := 80, url := "/", subprotocol := "")
     {
         this.host := host
@@ -9,9 +23,11 @@ class WSSession extends EventEmitter {
         this.url := url
         this.subprotocol := subprotocol
         
+		; At this point, our WSSession is just an HTTP session
+
         this.HTTP := new HTTPClient(this.host, this.port, ObjBindMethod(this, "HandleHTTP"))
 
-        this.DoHandshake()
+        this.DoHandshake() ; Attempt to become a websocket session
     }
     
     DoHandshake()
@@ -43,31 +59,38 @@ class WSSession extends EventEmitter {
     {
         if(Response.statuscode == 101)
         {
+			; Server has given us the green light to become a websocket session
+
             if(sec_websocket_accept(this.key) != Response.headers["Sec-WebSocket-Accept"]) {
                 console.log("WS Handshake error: key returned from server doesn't match.")
                 return
             }
             
 			WS := this.HTTP
-			ObjSetBase(WS, WSClient)
+			ObjSetBase(WS, WSClient) ; Cast our HTTPClient into our WSCient
 			this.WS := WS
 
-			this.WS.OnRequest := ObjBindMethod(this, "HandleWS")
+			; Fixup OnRequest so it'll call our HandleWS instead of the (noew dead) HTTPClient's OnRequest
+			this.WS.OnRequest := ObjBindMethod(this, "HandleWS") 
         }
         else
         {
-            console.log(response.raw)
+            ; Oops, something's wrong
+
+			Throw Exception("Unexpected HTTP status code " Response.StatusCode)
         }
     }
 
 	HandleWS(Response) {
-		OpcodeName := WSOpcodes.ToString(Response.Opcode)
+		; Generic "websocket message" handler
+
+		OpcodeName := WSOpcodes.ToString(Response.Opcode) ; Delegate to `OnOpcodeName()` methods if we've got them
 
 		if (ObjGetBase(this).HasKey("On" OpcodeName)) {
 			this["On" OpcodeName](Response)
 		}
 		
-		return this.Emit(Response.Opcode, Response)
+		return this.Emit(Response.Opcode, Response) ; Call any user handlers
 	}
 
 	OnPing(Response) {

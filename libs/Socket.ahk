@@ -253,3 +253,110 @@ class SocketUDP extends Socket
 			throw Exception("Error calling setsockopt",, this.GetLastError())
 	}
 }
+
+class ClientSocketTLS extends SocketTCP {
+
+	__New(Hostname) {
+		this.Hostname := Hostname
+
+		SocketTCP.__New.Call(this)
+	}
+
+	static SEC_E_OK := 0
+
+	CreateCred() {
+		static SCHANNEL_CRED_VERSION := 4
+		static SR_PROT_TLS1_2_CLIENT := 0x00000800
+
+		static SCH_CRED_NO_DEFAULT_CREDS := 0x00000010
+		static SCH_CRED_MANUAL_CRED_VALIDATION  := 0x00000008
+		static SCH_USE_STRONG_CRYPTO := 0x00400000
+
+		static Flags := SCH_CRED_NO_DEFAULT_CREDS | SCH_CRED_MANUAL_CRED_VALIDATION  | SCH_USE_STRONG_CRYPTO
+
+		VarSetCapacity(SCHANNEL_CRED, A_PtrSize == 8 ? 80 : 56, 0)
+
+		NumPut(SCHANNEL_CRED_VERSION, SCHANNEL_CRED, 0, "UInt")
+		NumPut(SR_PROT_TLS1_2_CLIENT, SCHANNEL_CRED, A_PtrSize == 8 ? 56 : 32, "UInt")
+		NumPut(Flags                , SCHANNEL_CRED, A_PtrSize == 8 ? 72 : 48, "UInt")
+
+		static SECPKG_CRED_OUTBOUND := 0x2
+
+		this.SetCapacity("CredHandle", 2 * A_PtrSize)
+		this.SetCapacity("TimeStamp", A_PtrSize)
+
+		Status := DllCall("Secur32.dll\AcquireCredentialsHandle"
+			, "Ptr", 0
+			, "Str", "Microsoft Unified Security Protocol Provider"
+			, "UInt", SECPKG_CRED_OUTBOUND
+			, "Ptr", 0
+			, "Ptr", &SCHANNEL_CRED
+			, "Ptr", 0
+			, "Ptr", 0
+			, "Ptr", this.GetAddress("CredHandle")
+			, "Ptr", this.GetAddress("TimeStamp"))
+
+		if (Status != this.SEC_E_OK) {
+			Throw Exception("AcquireCredentialsHandle failed, error code " Format("{:x}", Status & 0xFFFFFFFF))
+		}
+	}
+	
+	static SEC_I_CONTINUE_NEEDED := 0x00090312
+
+	ClientHello() {
+		static ISC_REQ_ALLOCATE_MEMORY        := 0x00000100
+		static ISC_REQ_CONFIDENTIALITY        := 0x00000010
+		static ISC_REQ_EXTENDED_ERROR         := 0x00004000
+        static ISC_REQ_REPLAY_DETECT          := 0x00004000
+		static ISC_REQ_SEQUENCE_DETECT        := 0x00000008
+		static ISC_REQ_STREAM                 := 0x00008000
+        static ISC_REQ_MANUAL_CRED_VALIDATION := 0x00080000
+
+		static Flags := ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_CONFIDENTIALITY | ISC_REQ_EXTENDED_ERROR | ISC_REQ_REPLAY_DETECT
+		 | ISC_REQ_SEQUENCE_DETECT | ISC_REQ_STREAM | ISC_REQ_MANUAL_CRED_VALIDATION
+
+		static SECBUFFER_VERSION := 0
+		static SECBUFFER_TOKEN := 2
+
+		this.SetCapacity("ContextHandle", A_PtrSize)
+
+		VarSetCapacity(SecBufferDescription, 8 + A_PtrSize, 0)
+		VarSetCapacity(SecBuffer, 8 + A_PtrSize, 0)
+
+		NumPut(SECBUFFER_TOKEN, SecBuffer, 4, "UInt") ; SecBuffer.Type = SECBUFFER_TOKEN
+
+		NumPut(SECBUFFER_VERSION, SecBufferDescription, 0, "UInt") ; SecBufferDesc.Version = SECBUFFER_VERSION
+		NumPut(1                , SecBufferDescription, 4, "UInt") ; SecBufferDesc.Count = 1
+		NumPut(&SecBuffer       , SecBufferDescription, 8, "Ptr")  ; SecBufferDesc.Data = &SecBuffer
+
+		Status := DllCall("Secur32.dll\InitializeSecurityContext"
+			, "Ptr", this.GetAddress("CredHandle")
+			, "Ptr", 0
+			, "Str", this.HostName
+			, "UInt", Flags
+			, "Ptr", 0
+			, "Ptr", 0
+			, "Ptr", 0
+			, "Ptr", 0
+			, "Ptr", this.GetAddress("ContextHandle")
+			, "Ptr", &SecBufferDescription
+			, "UInt*", OutFlags
+			, "Ptr", this.GetAddress("TimeStamp"))
+
+		if (Status != this.SEC_I_CONTINUE_NEEDED) {
+			Throw Exception("InitializeSecurityContext failed, error code " Format("{:x}", Status & 0xFFFFFFFF))
+		}
+
+		Size := NumGet(SecBuffer, 0, "UInt")
+		pData := NumGet(SecBuffer, 8, "Ptr")
+
+		this.Send(pData, Size)
+
+		DllCall("Secur32.dll\FreeContextBuffer", "Ptr", pData)
+	}
+
+	StartTLS() {
+		this.CreateCred()
+		this.ClientHello()
+	}
+}

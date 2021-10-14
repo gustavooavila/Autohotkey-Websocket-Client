@@ -6,7 +6,7 @@ global Console := new CConsole()
 Console.hotkey := "^+c"  ; to show the console
 Console.show()
 
-ws := new WSSession("localhost", 8080)
+ws := new WSSession("172.17.215.109", 8080)
 ws.On(WSOpcodes.Text, Func("received"))
 
 Sleep, 1000
