@@ -6,8 +6,7 @@ global Console := new CConsole()
 Console.hotkey := "^+c"  ; to show the console
 Console.show()
 
-ws := new WSClient("localhost", 8080)
-ws.addListener("RECEIVED", Func("received"))
+ws := new WSSession(Func("received"), "172.18.76.106", 8080)
 return
 
 received(ByRef e)
@@ -23,5 +22,4 @@ Esc::ExitApp
 
 #include, %A_ScriptDir%\..\..\libs
 #include, CConsole.ahk
-#include, HTTPClient.ahk
-#include, WSClient.ahk
+#include WSSession.ahk

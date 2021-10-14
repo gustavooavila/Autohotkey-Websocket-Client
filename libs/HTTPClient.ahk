@@ -3,26 +3,25 @@
 #Include EventEmitter.ahk
 #Include URI.ahk
 
-class HTTPClient extends EventEmitter
+class HTTPClient extends SocketTCP
 {
     __New(IP, Port, OnResponse) {
-        this.Socket := new SocketTCP()
+        SocketTCP.__New.Call(this)
 
-        this.Socket.OnRecv := ObjBindMethod(this, "OnReceive")
         this.OnResponse := OnResponse
 
-        this.Socket.Connect([IP, Port])
+        this.Connect([IP, Port])
     }
 
     SendRequest(Request) {
-        this.Socket.SendText(Request.Generate())
+        this.SendText(Request.Generate())
     }
 
     PendingResponse := false
 
-    OnReceive(Socket) {
-        ResponseSize := Socket.MsgSize()
-        ResponseText := Socket.RecvText()
+    OnRecv() {
+        ResponseSize := this.MsgSize()
+        ResponseText := this.RecvText()
 
         if (IsObject(this.PendingResponse) && !this.PendingResponse.Done) {
             ; Get data and append it to the existing response body
