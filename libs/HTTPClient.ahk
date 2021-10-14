@@ -1,149 +1,56 @@
-#include AHKsock.ahk
+#include Socket.ahk
 #Include Buffer.ahk
 #Include EventEmitter.ahk
 #Include URI.ahk
 
-; this is a hack to allow AHKsock to accept BoundFunc as parameter for AHKsock_Connect and AHKsock_Listen
-isFunc(param)
-{
-	fn := numGet(&(_ := Func("InStr").bind()), "Ptr")
-	return (Func(param) || (isObject(param) && (numGet(&param, "Ptr") = fn)))
-}
-
-class SocketClient
-{
-    __New(socket) {
-        this.socket := socket
-    }
-    
-    ;TODO: clean up better, delete this object and all references
-    
-    Close(timeout = 5000) {
-        AHKsock_Close(this.socket, timeout)
-    }
-    
-    ;TODO: replace with message Queue
-    
-    SetData(data) {
-        console.log("set data")
-        this.data := data
-    }
-    sendBinary(byRef data) {
-        if ((i := AHKsock_Send(this.socket, p, length - this.dataSent)) < 0) {
-            console.log("sent binary data")
-        }
-    }
-    TrySend() {
-        if (!this.data || this.data == "")
-        return false
-        
-        console.log("trysend")
-        p := this.data.GetPointer()
-        length := this.data.length
-        
-        this.dataSent := 0
-        
-        loop {
-            if ((i := AHKsock_Send(this.socket, p, length - this.dataSent)) < 0) {
-                if (i == -2) {
-                return
-                } else {
-                    ; Failed to send
-                    return
-                }
-            }
-            if (i < length - this.dataSent) {
-            this.dataSent += i
-            } else {
-                break
-            }
-        }
-        this.dataSent := 0
-        this.data := ""
-        
-        return true
-    }
-}
-
 class HTTPClient extends EventEmitter
 {
-    __New(host, port) {
-        this.host := host
-        this.port := port
-        this.requests := []
-        
-        If (i := AHKsock_Connect(this.host, this.port, objBindMethod(this, "handler")))
-        {
-            console.log("AHKsock_Connect() failed with return value = ", i," and ErrorLevel = ", ErrorLevel)
-        }
+    __New(IP, Port, OnResponse) {
+        this.Socket := new SocketTCP()
+
+        this.Socket.OnRecv := ObjBindMethod(this, "OnReceive")
+        this.OnResponse := OnResponse
+
+        this.Socket.Connect([IP, Port])
     }
-    
-    handler(sEvent, iSocket = 0, sName = 0, sAddr = 0, sPort = 0, ByRef bData = 0, bNewDataLength = 0)
-    {
-        console.log(sEvent, iSocket)
-        client := this.requests[iSocket]
-        text := StrGet(&bData, "UTF-8")
-        If (sEvent = "CONNECTED")
-        {
-            If (iSocket = -1)
-            {
-                Console.log("Client - AHKsock_Connect() failed.")
-                return -1
-            }
-            this.requests[iSocket] := new SocketClient(iSocket)
-            this.emit("CONNECTED", {client: client})
+
+    SendRequest(Request) {
+        this.Socket.SendText(Request.Generate())
+    }
+
+    PendingResponse := false
+
+    OnReceive(Socket) {
+        ResponseSize := Socket.MsgSize()
+        ResponseText := Socket.RecvText()
+
+        if (IsObject(this.PendingResponse) && !this.PendingResponse.Done) {
+            ; Get data and append it to the existing response body
+
+            Response := this.PendingResponse
+
+            Response.BytesLeft -= ResponseSize
+            Response.Body .= ResponseText
+        } 
+        else {
+            ; Parse new response
+
+            Response := new HTTPResponse(ResponseText)
+
+            TotalSize := Response.Headers["Content-Length"] + 0
+            Response.BytesLeft := TotalSize
             
-        } else if(sEvent = "RECEIVED")
-        {
-            if(client.websocket)
-            {
-                this.emit("RECEIVED", {client: client, data: bData,len: bNewDataLength})
-                return
+            if (Response.Body) {
+                Response.BytesLeft -= StrPut(Response.Body, "UTF-8") ; Response.BytesLeft -= SizeOf(Response.Body.Encode('UTF-8'))
             }
-            if (client.response)
-            {
-                ; Get data and append it to the existing response body
-                client.response.bytesLeft -= StrLen(text)
-                client.response.body := client.response.body . text
-                response := client.response
-            } else
-            {
-                ; Parse new response
-                response := new HTTPResponse(text)
-                length := response.headers["Content-Length"]
-                response.bytesLeft := length + 0
-                
-                if (response.body) {
-                    response.bytesLeft -= StrLen(response.body)
-                }
-            }
-            if (response.bytesLeft <= 0)
-            {
-                response.done := true
-            } else
-            {
-                client.response := response
-            }
-            
-            if(response.done)
-            {
-                this.emit("RECEIVED", {client: client, response: response, request: client.request})
-            }
-        } else if(sEvent = "DISCONNECTED")
-        {
-            this.emit("DISCONNECTED", {client: client})
-        } else if(sEvent = "SEND")
-        {
-            if(client.websocket)
-            {
-                this.emit("SEND", {client: client, message: text})
-                return
-            }
-            request := new HTTPRequest()
-            client.request := request
-            this.emit("SEND", {client: client, request: request})
-            client.SetData(request.Generate())
-            client.TrySend()
+        }
+
+        if (Response.BytesLeft <= 0) {
+            Response.Done := true
+            this.OnResponse(Response)
+        }
+        else {
+            this.PendingResponse := Response
         }
     }
 }
@@ -172,12 +79,8 @@ class HTTPRequest
             body .= key . ": " . value . "`r`n"
         }
         body .= "`r`n"
-        buffer := new Buffer((StrLen(body) * 2))
-        buffer.WriteStr(body)
         
-        buffer.Done()
-        
-        return buffer
+        return body
     }
 }
 

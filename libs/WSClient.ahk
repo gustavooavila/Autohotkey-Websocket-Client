@@ -36,55 +36,52 @@ class WSClient extends EventEmitter
         this.url := url
         this.subprotocol := subprotocol
         
-        this.httpClient := new HTTPClient(this.host, this.port)
-        
-        this.httpClient.on("RECEIVED", objBindMethod(this, "handle"))
-        this.httpClient.once("SEND", objBindMethod(this, "doHandshake"))
+        this.HTTP := new HTTPClient(this.host, this.port, ObjBindMethod(this, "HandleHTTP"))
+
+        this.DoHandshake()
     }
     
-    doHandshake(ByRef e)
+    DoHandshake()
     {
         console.log("only this once")
+
+        UpgradeRequest := new HTTPRequest()
+
         this.key := createHandshakeKey()
         
-        e.data.request.headers["Host"] := this.host . ":" . this.port
-        e.data.request.headers["Origin"] := "http://" . this.host . ":" . this.port
-        e.data.request.headers["Connection"] := "Upgrade"
-        e.data.request.headers["Upgrade"] := "websocket"
-        e.data.request.headers["Sec-WebSocket-Key"] := this.key
+        UpgradeRequest.headers["Host"] := this.host . ":" . this.port
+        UpgradeRequest.headers["Origin"] := "http://" . this.host . ":" . this.port
+        UpgradeRequest.headers["Connection"] := "Upgrade"
+        UpgradeRequest.headers["Upgrade"] := "websocket"
+        UpgradeRequest.headers["Sec-WebSocket-Key"] := this.key
+
         if(this.subprotocol)
         {
-            e.data.request.headers["Sec-WebSocket-Protocol"] := this.subprotocol
+            request.headers["Sec-WebSocket-Protocol"] := this.subprotocol
         }
-        e.data.request.headers["Sec-WebSocket-Version"] := 13
+
+        UpgradeRequest.headers["Sec-WebSocket-Version"] := 13
         
-        e.data.request.method := "GET"
-        e.data.request.url := this.url
+        UpgradeRequest.method := "GET"
+        UpgradeRequest.url := this.url
+
+        this.HTTP.SendRequest(UpgradeRequest)
     }
     
-    handle(ByRef e)
+    HandleHTTP(HTTP, Response)
     {
-        client := e.data.client
-        request := e.data.request
-        response := e.data.response
-        if(client.websocket)
+        if(Response.statuscode == 101)
         {
-            this.handleWS(client, e.data.data, e.data.len)
-        }else
-        {
-            this.handleHTTP(request, response, client)
-        }
-    }
-    
-    handleHTTP(ByRef request, ByRef response, ByRef client)
-    {
-        if(response.statuscode == 101)
-        {
-            if(sec_websocket_accept(this.key) != response.headers["Sec-WebSocket-Accept"]) {
+            if(sec_websocket_accept(this.key) != Response.headers["Sec-WebSocket-Accept"]) {
                 console.log("WS Handshake error: key returned from server doesn't match.")
                 return
             }
-            client.websocket := True
+            
+            ; "Suck the brains out" of the HTTPClient by stealing the socket from it, and having the socket
+            ;  call back to us instead of the HTTP client
+
+            this.Socket := HTTP.Socket
+            this.Socket.OnRecv := ObjBindMethod(this, "HandleWS")
         }
         else
         {
@@ -92,9 +89,14 @@ class WSClient extends EventEmitter
         }
     }
     
-    handleWS(ByRef client, ByRef data, len)
+    HandleWS()
     {   
-        res := new WSRequest(data, len)
+        DataSize := this.Socket.MsgLen()
+        VarSetCapacity(Data, DataSize)
+
+        this.Socket.Recv(Data, DataSize)
+
+        res := new WSRequest(Data, DataSize)
         
         console.log(res)
         console.log(res.payload)
