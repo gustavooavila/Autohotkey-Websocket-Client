@@ -6,22 +6,24 @@ global Console := new CConsole()
 Console.hotkey := "^+c"  ; to show the console
 Console.show()
 
-ws := new WSClient("localhost", 8080)
-ws.addListener("RECEIVED", Func("received"))
+ws := new WSSession("localhost", 8080)
+ws.On(WSOpcodes.Text, Func("received"))
+
+Sleep, 1000
+ws.SendText("Hello world!")
+
 return
 
-received(ByRef e)
-{
-    client := e.data.client
-    response := e.data.response
-    request := e.data.request
-    
-    console.log(response)
+received(Event)
+{   
+    Response := Event.Data
+
+    console.log(Response)
+    Console.log(Response.GetMessage())
 }
 
 Esc::ExitApp
 
 #include, %A_ScriptDir%\..\..\libs
 #include, CConsole.ahk
-#include, HTTPClient.ahk
-#include, WSClient.ahk
+#include WSSession.ahk

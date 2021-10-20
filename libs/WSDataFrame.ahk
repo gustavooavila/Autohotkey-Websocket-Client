@@ -57,6 +57,23 @@
 
 OpCodes := {CONTINUATION:0x0,TEXT:0x1,BINARY:0x2,CLOSE:0x8,PING:0x9,PONG:0xA}
 
+class WSOpcodes {
+        static CONTINUATION := 0x0
+        static TEXT := 0x1
+        static BINARY := 0x2
+        static CLOSE := 0x8
+        static PING := 0x9
+        static PONG := 0xA
+
+        ToString(Value) {
+            for Name, NameValue in WSOpcodes {
+                if (Value = NameValue) {
+                    return Name
+                }
+            }
+        }
+    }
+
 /*
     MDN says: 
     "
@@ -105,22 +122,22 @@ class WSDataFrame{
 }
 
 class WSRequest{
-    __new(ByRef data, bDataLength){
+    __new(pData, DataLength){
         this.payload := []
-        this.decode(data, bDataLength)
+        this.decode(pData, DataLength)
     }
-    decode(ByRef data, bDataLength){
-        this.parseHeader(data, bDataLength)
-        this.getPayload(data, bDataLength, this.length)
+    decode(pData, DataLength){
+        this.parseHeader(pData, DataLength)
+        this.getPayload(pData, DataLength, this.length)
     }
-    parseHeader(ByRef data, bDataLength){
-        byte1 := NumGet(&data + 0, "UChar")
-        byte2 := NumGet(&data + 1, "UChar")
+    parseHeader(pData, DataLength){
+        byte1 := NumGet(pData + 0, "UChar")
+        byte2 := NumGet(pData + 1, "UChar")
         
-        byte3 := NumGet(&data + 2, "UChar")
-        byte4 := NumGet(&data + 3, "UChar")
-        byte5 := NumGet(&data + 4, "UChar")
-        byte6 := NumGet(&data + 5, "UChar")
+        byte3 := NumGet(pData + 2, "UChar")
+        byte4 := NumGet(pData + 3, "UChar")
+        byte5 := NumGet(pData + 4, "UChar")
+        byte6 := NumGet(pData + 5, "UChar")
         
         this.fin := byte1 & 0x80 ? True : False
         
@@ -128,53 +145,68 @@ class WSRequest{
         this.rsv2 := byte1 & 0x20 ? True : False
         this.rsv3 := byte1 & 0x10 ? True : False
         
-        this.opcode := byte1 & 0x0F
+        Opcode := this.opcode := byte1 & 0xF
         
-        if(this.opcode & 0x01) {
-        this.datatype := "text"
-        }else if(this.opcode & 0x02) {
-        this.datatype := "binary"
-        }else if(this.opcode & 0x8){
-        this.datatype := "close"
-        }else if(this.opcode & 0x9){
-        this.datatype := "ping"
-        }else if(this.opcode & 0xA){
+        if (Opcode = 0x01) {
+            this.datatype := "text"
+        }
+        else if (Opcode = 0x02) {
+            this.datatype := "binary"
+        }
+        else if (Opcode = 0x8){
+            this.datatype := "close"
+        }
+        else if (Opcode = 0x9){
+            this.datatype := "ping"
+        }
+        else if (Opcode = 0xA){
             this.datatype := "pong"
         }
         
         this.mask := byte2 & 0x80 ? True : False ; indicates if the content is masked(XOR)
         
         this.length := byte2 & 0x7F
-        if(this.length == 0x7E){
+
+        if (this.length == 0x7E) {
             this.length := Uint16(byte3, byte4)
-            if(this.mask){
-                this.key := this.getKey(data, 4)
+
+            if (this.mask) {
+                this.key := this.getKey(pData, 4)
             }
-        
-        } else if(this.length == 0x7F) {
+        } 
+        else if (this.length == 0x7F) {
             this.length := Uint64(byte3, byte4, byte5, byte6)
-            if(this.mask){
-                this.key := this.getKey(data, 6)
+
+            if (this.mask) {
+                this.key := this.getKey(pData, 6)
             }
-        
-        }else if(this.mask){
-            this.key := this.getKey(data)
         }
+        else if (this.mask) {
+            this.key := this.getKey(pData)
+        }
+
+        ; FIXME: This only works for very short frames
+
+        HeaderSize := 2 + (this.mask * 4)
+
+        this.pPayload := pData + HeaderSize
+        this.PayloadSize := this.length
     }
     
-    getKey(ByRef data, index := 2){
+    getKey(pData, index := 2){
         key := []
-        key[1] := NumGet(&data + (index + 0), "UChar")
-        key[2] := NumGet(&data + (index + 1), "UChar")
-        key[3] := NumGet(&data + (index + 2), "UChar")
-        key[4] := NumGet(&data + (index + 3), "UChar")
+        key[1] := NumGet(pData + (index + 0), "UChar")
+        key[2] := NumGet(pData + (index + 1), "UChar")
+        key[3] := NumGet(pData + (index + 2), "UChar")
+        key[4] := NumGet(pData + (index + 3), "UChar")
         return key
     }
     
-    getPayload(ByRef data, bDataLength, length) {
-        payloadIndex := bDataLength - length
-        Loop %length% {
-            byte := NumGet(&data + payloadIndex + A_Index - 1, "UChar")
+    getPayload(pData, DataLength, length) {
+        payloadIndex := DataLength - length
+
+        loop %length% {
+            byte := NumGet(pData + payloadIndex + A_Index - 1, "UChar")
             this.payload.push(byte)
         }
         
@@ -184,37 +216,31 @@ class WSRequest{
     }
     
     getMessage() {
-        if(this.datatype == "text"  || this.datatype == "ping") {
+        if (this.datatype == "text" || this.datatype == "ping") {
             message := ""
-            For _, byte in this.payload{
+
+            for _, byte in this.payload {
                 message .= chr(byte)
             }
+
             return message
         }
+
         return this.payload
     }
 }
-class WSResponse{
-    __new(opcode := 0x01, message := "", length := 0, fin := True){
-        this.message := message
+class WSResponse {
+    __new(opcode := 0x01, pMessage := "", length := 0, fin := True){
         this.opcode := opcode
         this.fin := fin
-        if(message) {
-            if(opcode & 0x01)
-        this.length := strlen(message)
-        } else {
-            this.length := length
-        }
+        this.pMessage := pMessage
+        this.length := length
     }
     
     encode() {
-        if(this.opcode & 0x01) {
-            this.length := strlen(this.message)
-        }
-        
         byte1 := (this.fin? 0x80 : 0x00) | this.opcode
         
-        if(this.length < 126) {
+        if(this.length < 127) {
             byteArr := [byte1, this.length]
         
         } else if(this.length <= 65535) {
@@ -227,18 +253,26 @@ class WSResponse{
             
         }
         
-        length := this.length + byteArr.Length()
+        byteArr[2] |= 0x80 ; Set MASK bit
+
+        length := this.length + byteArr.Length() + 4
         buf := new Buffer(length)
-        
-        message := this.message
-        Loop, Parse, message 
-        byteArr.push(Asc(A_LoopField))
-        VarSetCapacity(result, length)
-        For, i, byte in byteArr {
+
+        VarSetCapacity(result, byteArr.Length())
+        for i, byte in byteArr {
             NumPut(byte, result, A_Index - 1, "UInt")
         }
-        buf.Write(&result, length)
+        buf.Write(&result, byteArr.Length())
+
+        VarSetCapacity(TempMask, 4, 0)
+        NumPut(TempMask, 0, "UInt")
+
+        buf.Write(&TempMask, 4)
+        buf.Write(this.pMessage, this.length)
+
         return buf
     }
     
 }
+
+#Include Buffer.ahk

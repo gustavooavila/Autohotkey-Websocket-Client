@@ -14,10 +14,7 @@ class Event
 
 class EventEmitter
 {
-    __new()
-    {
-        this.events := {}
-    }
+    events := {}
     
     _addListener(eventName, ByRef listener, atStart := 0, once := 0)
     {
