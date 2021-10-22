@@ -137,6 +137,10 @@ class ReadOnlyBufferBase {
 	}
 }
 
+MoveMemory(pTo, pFrom, Size) {
+   DllCall("RtlMoveMemory", "Ptr", pTo, "Ptr", pFrom, "UInt", Size)
+}
+
 class WSRequest extends ReadOnlyBufferBase {
 	__New(pData, DataLength){
 		this.pData := pData
@@ -146,6 +150,12 @@ class WSRequest extends ReadOnlyBufferBase {
 		this.UnMaskPayload()
 
 		if (this.Opcode = WSOpcodes.Text) {
+			NumPut(0, this.pPayload + 0, this.PayloadSize, "UChar") 
+			; Null terminate for TEXT opcodes, since stupid `StrGet()` takes a number of characters, and not a number of bytes.
+			; "Ah yeah, I know loads of protocols that communicate in terms of how many UTF-8 *characters* are in a message"
+
+			; This is safe, since `WSClient.OnRecv()` allocates `DataSize + 1` bytes (specifically for us)
+
 			this.PayloadText := StrGet(this.pPayload, "UTF-8", this.PayloadSize)
 		}
 	}
@@ -166,23 +176,18 @@ class WSRequest extends ReadOnlyBufferBase {
 		
 		this.PayloadSize := MaskAndLength & 0x7F
 
-		LengthSize := 1
+		LengthSize := 0
 
-		if (this.PayloadSize >= 126) {
-			; 0/1 -> 1/2
-			; 1/2 -> 2/8
-
-			LengthSize := ((this.Length & 1) + 1) * 4
-		}
-
-		if (LengthSize = 2) {
-			this.PayloadSize := this.ReadUShort(2)
+		if (this.PayloadSize = 0x7E) {
+			LengthSize := 2
+			this.PayloadSize := DllCall("Ws2_32\ntohs", "UShort", this.ReadUShort(2), "UShort")
 		} 
-		else if (LengthSize = 8) {
-			this.PayloadSize := this.ReadUInt64(2)
+		else if (this.PayloadSize = 0x7F) {
+			LengthSize := 8
+			this.PayloadSize := DllCall("Ws2_32\ntohll", "UInt64", this.ReadUInt64(2), "UInt64")
 		}
 
-		this.pKey := this.pData + 1 + LengthSize ; Only actually used if we are masked, otherwise it is equal to pPayload
+		this.pKey := this.pData + 2 + LengthSize ; Only actually used if we are masked, otherwise it is equal to pPayload
 		this.pPayload := this.pKey + (this.IsMasked * 4)
 	}
 

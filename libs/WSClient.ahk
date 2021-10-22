@@ -37,7 +37,7 @@ class WSClient extends SocketTCP
 
     OnRecv() {   
         DataSize := this.MsgSize()
-        VarSetCapacity(Data, DataSize)
+        VarSetCapacity(Data, DataSize + 1) ; One extra byte, so we can null terminate TEXT messages
         this.Recv(Data, DataSize)
 
         Request := new WSRequest(&Data, DataSize)
