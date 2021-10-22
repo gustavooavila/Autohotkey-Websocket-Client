@@ -29,16 +29,58 @@ sec_websocket_accept(key)
 
 class WSClient extends SocketTCP
 {
-    OnRecv()
-    {   
+    PendingFragmentedRequest := 0
+
+    HandleRequest(Request) {
+        this.OnRequest.Call(Request)
+    }
+
+    OnRecv() {   
         DataSize := this.MsgSize()
         VarSetCapacity(Data, DataSize)
-
         this.Recv(Data, DataSize)
 
-        this.OnRequest.Call(new WSRequest(&Data, DataSize))
+        Request := new WSRequest(&Data, DataSize)
 
-        return
+        if (Request.Opcode & 0x10) {
+            ; Control frame, skip fragmentation handling
+
+            this.HandleRequest(Request)            
+        }
+        else if (Request.Opcode != 0 && Request.Final) {
+            ; Opcode that can be fragmented, but this is the final request of the fragmented message.
+            ; Meaning that this is both the start and end of a fragmented message, making it the 
+            ;  only fragment of that message.
+
+            this.HandleRequest(Request)
+        }
+        else {
+            ; The start or middle/end of a fragmented request
+
+            if (IsObject(this.PendingFragmentedRequest)) {
+                ; Middle/end of a fragmented request
+
+                this.PendingFragmentedRequest.Update(Request)
+                
+                if (this.PendingFragmentedRequest.Final) {
+                    ; Middle *and* end of a fragmented request
+
+                    this.HandleRequest(this.PendingFragmentedRequest)
+                    this.PendingFragmentedRequest := 0
+                }
+
+                ; else { middle of fragmented request }
+            }
+            else {
+                ; Start of a fragmented request
+
+                if (Request.Opcode = 0) {
+                    Throw Exception("The server replied with a fragmented request starting with an opcode of 0")
+                }
+
+                this.PendingFragmentedRequest := new WSFragmentedRequest(Request)
+            }
+        }
     }
 
     SendFrame(Opcode, pMessageBuffer := 0, MessageSize := 0) {
