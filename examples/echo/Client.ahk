@@ -7,7 +7,7 @@ Console.hotkey := "^+c"  ; to show the console
 Console.show()
 
 ws := new WSSession("172.17.215.109", 8080)
-ws.On(WSOpcodes.Text, Func("received"))
+ws.On("TEXT", Func("received"))
 
 Sleep, 1000
 ws.SendText("Hello world!")
