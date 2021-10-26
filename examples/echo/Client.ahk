@@ -20,6 +20,8 @@ received(Event)
 
     console.log(Response)
     Console.log(Response.GetMessage())
+
+    MsgBox, % Response.PayloadText
 }
 
 Esc::ExitApp
