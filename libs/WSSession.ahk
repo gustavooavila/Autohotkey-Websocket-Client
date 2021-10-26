@@ -44,7 +44,7 @@ class WSSession extends EventEmitter {
 
         if(this.subprotocol)
         {
-            request.headers["Sec-WebSocket-Protocol"] := this.subprotocol
+            UpgradeRequest.headers["Sec-WebSocket-Protocol"] := this.subprotocol
         }
 
         UpgradeRequest.headers["Sec-WebSocket-Version"] := 13
