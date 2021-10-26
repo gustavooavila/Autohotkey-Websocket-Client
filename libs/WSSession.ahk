@@ -90,7 +90,7 @@ class WSSession extends EventEmitter {
 			this["On" OpcodeName](Response)
 		}
 		
-		return this.Emit(Response.Opcode, Response) ; Call any user handlers
+		return this.Emit(OpcodeName, Response) ; Call any user handlers
 	}
 
 	OnPing(Response) {
