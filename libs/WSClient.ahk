@@ -1,8 +1,8 @@
-#include Crypto.ahk
-#include WSDataFrame.ahk
-#Include Buffer.ahk
-#Include EventEmitter.ahk
-#Include HTTPClient.ahk
+#Include %A_LineFile%\..\Crypto.ahk
+#Include %A_LineFile%\..\WSDataFrame.ahk
+#Include %A_LineFile%\..\Buffer.ahk
+#Include %A_LineFile%\..\EventEmitter.ahk
+#Include %A_LineFile%\..\HTTPClient.ahk
 
 
 createHandshakeKey()

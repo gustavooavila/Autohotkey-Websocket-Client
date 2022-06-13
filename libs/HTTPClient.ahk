@@ -1,7 +1,7 @@
-#include Socket.ahk
-#Include Buffer.ahk
-#Include EventEmitter.ahk
-#Include URI.ahk
+#Include %A_LineFile%\..\Socket.ahk
+#Include %A_LineFile%\..\Buffer.ahk
+#Include %A_LineFile%\..\EventEmitter.ahk
+#Include %A_LineFile%\..\URI.ahk
 
 class HTTPClient extends SocketTCP
 {

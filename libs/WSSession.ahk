@@ -1,5 +1,5 @@
-#include HTTPClient.ahk
-#include WSClient.ahk
+#Include %A_LineFile%\..\HTTPClient.ahk
+#Include %A_LineFile%\..\WSClient.ahk
 
 class WSSession extends EventEmitter {
 	; So, the whole idea behind a websocket is that we're converting a HTTP connection into a websocket connection, reusing the

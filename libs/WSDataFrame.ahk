@@ -320,4 +320,4 @@ class WSResponse {
 	
 }
 
-#Include Buffer.ahk
+#Include %A_LineFile%\..\Buffer.ahk
