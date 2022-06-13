@@ -6,7 +6,7 @@ global Console := new CConsole()
 Console.hotkey := "^+c"  ; to show the console
 Console.show()
 
-ws := new WSSession("172.17.215.109", 8080)
+ws := new WSSession("localhost", 8080)
 ws.On("TEXT", Func("received"))
 
 Sleep, 1000
@@ -21,7 +21,7 @@ received(Event)
     console.log(Response)
     Console.log(Response.GetMessage())
 
-    MsgBox, % Response.PayloadText
+    ;MsgBox, % Response.PayloadText
 }
 
 Esc::ExitApp
