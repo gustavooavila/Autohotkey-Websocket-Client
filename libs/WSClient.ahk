@@ -35,12 +35,12 @@ class WSClient extends SocketTCP
         this.OnRequest.Call(Request)
     }
 
-    OnRecv() {   
-        DataSize := this.MsgSize()
-        VarSetCapacity(Data, DataSize + 1) ; One extra byte, so we can null terminate TEXT messages
-        this.Recv(Data, DataSize)
+       OnRecv(ByRef message, length) {
+                                  
+        VarSetCapacity(Data, length + 1) ; One extra byte, so we can null terminate TEXT messages
+        DllCall("RtlMoveMemory", "Ptr", &Data, "Ptr", &message, "UInt", length) 
 
-        Request := new WSRequest(&Data, DataSize)
+        Request := new WSRequest(&Data, length)
 
         if (Request.Opcode & 0x10) {
             ; Control frame, skip fragmentation handling

@@ -18,6 +18,11 @@
 			Init := True
 		}
 		this.Socket := Socket
+        
+        this.messageQueue := []
+        this.timerRunning := False
+        this.timerInterval := 10
+        this.timer := ObjBindMethod(this, "Worker")
 	}
 	
 	__Delete()
@@ -26,6 +31,33 @@
 			this.Disconnect()
 	}
 	
+    Worker()
+    {
+        message := this.messageQueue.RemoveAt(1)
+        address := message.address
+        length := message.length
+        if(this.messageQueue.Length() < 1)
+        {
+            timer := this.timer
+            SetTimer, %timer%, Off
+            this.timerRunning := False
+        }
+        this.onRecv(address, length)
+    }
+    
+    Enqueue(ByRef address, length)
+    {        
+        this.messageQueue.Push({address: address, length: length})
+        if(!this.timerRunning)
+        {
+            timer := this.timer
+            interval := this.timerInterval
+            SetTimer, %timer%, %interval%
+            
+            this.timerRunning := True
+        }
+    }
+    
 	Connect(Address)
 	{
 		if (this.Socket != -1)
@@ -187,7 +219,10 @@
 		if (Msg != this.WM_SOCKET || wParam != this.Socket)
 			return
 		if (lParam & this.FD_READ)
-			this.onRecv()
+        {
+            length := this.Recv(message)
+            this.Enqueue(message, length)
+        }
 		else if (lParam & this.FD_ACCEPT)
 			this.onAccept()
 		else if (lParam & this.FD_CLOSE)
@@ -200,7 +235,7 @@
 		if !this.Bound
 		{
 			this.Bound := this.OnMessage.Bind(this)
-			OnMessage(this.WM_SOCKET, this.Bound)
+			OnMessage(this.WM_SOCKET, this.Bound, 4)
 		}
 	}
 	

@@ -19,16 +19,16 @@ class HTTPClient extends SocketTCP
 
     PendingResponse := false
 
-    OnRecv() {
-        ResponseSize := this.MsgSize()
-        ResponseText := this.RecvText()
+    OnRecv(ByRef message, length) {
+        ResponseText := StrGet(&message, length, "UTF-8")
+                                       
 
         if (IsObject(this.PendingResponse) && !this.PendingResponse.Done) {
             ; Get data and append it to the existing response body
-
+            
             Response := this.PendingResponse
-
-            Response.BytesLeft -= ResponseSize
+            
+            Response.BytesLeft -= length
             Response.Body .= ResponseText
         } 
         else {
